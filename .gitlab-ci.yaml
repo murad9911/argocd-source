@@ -1,0 +1,35 @@
+variables:
+  IMAGE_TAG: $CI_REGISTERY:$CI_COMMIT_SHORT_SHA
+  CI_REGISTERY: 6989911/test1
+  TAG_COMMIT: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_NAME:$CI_COMMIT_SHORT_SHA
+stages:
+  - build
+  - get_pods
+  - deploy
+
+build:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  script:
+    - mkdir -p /kaniko/.docker
+    - echo "{\"auths\":{\"https://index.docker.io/v1/\":{\"auth\":\"$(printf "%s:%s" "6989911" "${CI_REGISTRY_DOCKER_PASSWORD}" | base64 -w 0)\"}}}" > /kaniko/.docker/config.json
+    - echo $CI_COMMIT_TAG
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile "$CI_PROJECT_DIR/Dockerfile" --destination "${IMAGE_TAG}"
+    - echo $CI_REGISTRY_IMAGE
+  
+
+build-code-job:
+  stage: get_pods
+  script:
+    - mkdir -p /root/.kube ;  cp $KUBE_CONFIG /root/.kube/config
+    - kubectl get pods
+  only:
+    - main
+
+deploy:
+  stage: deploy
+  script:
+    - mkdir -p /root/.kube ;  cp $KUBE_CONFIG /root/.kube/config
+    - sed s%imagetag%$IMAGE_TAG% deployment.yaml | kubectl  apply -f -
